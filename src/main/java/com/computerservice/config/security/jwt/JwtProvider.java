@@ -16,10 +16,13 @@ public class JwtProvider {
     @Value("$(jwt.secret)")
     private String jwtSecret;
 
-    public String generateToken(String login) {
+    public String generateToken(String login, String role) {
         Date date = Date.from(LocalDate.now().plusDays(15).atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+        Claims claims = Jwts.claims().setSubject(login);
+        claims.put("role", role);
         return Jwts.builder()
-                .setSubject(login)
+                .setClaims(claims)
                 .setExpiration(date)
                 .signWith(SignatureAlgorithm.HS512, jwtSecret)
                 .compact();

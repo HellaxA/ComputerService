@@ -1,4 +1,4 @@
-package com.computerservice.config.security;
+package com.computerservice.entity.authentication;
 
 import com.computerservice.entity.user.UserEntity;
 import org.springframework.security.core.GrantedAuthority;

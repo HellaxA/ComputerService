@@ -1,4 +1,4 @@
-package com.computerservice.controller.test.authorization;
+package com.computerservice.controller.authorization;
 
 import com.computerservice.config.security.jwt.JwtProvider;
 import com.computerservice.entity.authentication.AuthRequest;
@@ -9,9 +9,11 @@ import com.computerservice.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -30,7 +32,7 @@ public class AuthController {
     @PostMapping("/auth")
     public AuthResponse auth(@RequestBody AuthRequest request) {
         UserEntity userEntity = userService.findByLoginAndPassword(request.getLogin(), request.getPassword());
-        String token = jwtProvider.generateToken(userEntity.getLogin());
+        String token = jwtProvider.generateToken(userEntity.getLogin(), userEntity.getRoleEntity().getName());
         return new AuthResponse(token);
     }
 }

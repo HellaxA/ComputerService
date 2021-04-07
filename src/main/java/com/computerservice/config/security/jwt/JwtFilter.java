@@ -1,7 +1,7 @@
 package com.computerservice.config.security.jwt;
 
-import com.computerservice.config.security.CustomUserDetails;
-import com.computerservice.config.security.CustomUserDetailsService;
+import com.computerservice.entity.authentication.CustomUserDetails;
+import com.computerservice.service.authentication.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
