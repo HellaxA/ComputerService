@@ -1,5 +1,6 @@
-package com.computerservice.config.security;
+package com.computerservice.service.authentication;
 
+import com.computerservice.entity.authentication.CustomUserDetails;
 import com.computerservice.entity.user.UserEntity;
 import com.computerservice.service.user.UserService;
 import lombok.RequiredArgsConstructor;
