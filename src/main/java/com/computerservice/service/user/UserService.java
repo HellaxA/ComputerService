@@ -2,6 +2,7 @@ package com.computerservice.service.user;
 
 import com.computerservice.entity.role.RoleEntity;
 import com.computerservice.entity.user.UserEntity;
+import com.computerservice.exception.user.UserDoesntExistInSystem;
 import com.computerservice.repository.role.RoleEntityRepository;
 import com.computerservice.repository.user.UserEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,6 @@ public class UserService {
             return userEntity;
         }
         log.info("User doesn't exist in the system.");
-        return null;
+        throw new UserDoesntExistInSystem();
     }
 }
