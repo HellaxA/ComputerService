@@ -1,6 +1,6 @@
 package com.computerservice.controller.authorization;
 
-import com.computerservice.config.security.jwt.JwtProvider;
+import com.computerservice.config.security.jwt.JwtProviderImpl;
 import com.computerservice.entity.authentication.AuthRequest;
 import com.computerservice.entity.authentication.AuthResponse;
 import com.computerservice.entity.authentication.RegistrationRequest;
@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final UserService userService;
-    private final JwtProvider jwtProvider;
+    private final JwtProviderImpl jwtProviderImpl;
 
     @PostMapping("/register")
     public String registerUser(@RequestBody RegistrationRequest registrationRequest) {
@@ -32,7 +32,7 @@ public class AuthController {
     @PostMapping("/auth")
     public AuthResponse auth(@RequestBody AuthRequest request) {
         UserEntity userEntity = userService.findByLoginAndPassword(request.getLogin(), request.getPassword());
-        String token = jwtProvider.generateToken(userEntity.getLogin(), userEntity.getRoleEntity().getName());
+        String token = jwtProviderImpl.generateToken(userEntity.getLogin(), userEntity.getRoleEntity().getName());
         return new AuthResponse(token);
     }
 }

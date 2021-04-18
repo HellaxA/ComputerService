@@ -1,20 +1,17 @@
 package com.computerservice.entity.pc.gpu;
 
 
+import com.computerservice.entity.pc.PcComponent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "gpu")
-public class Gpu {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private BigInteger id;
+public class Gpu extends PcComponent {
 
     @Column(name = "add_power_pin")
     private String addPower;
@@ -25,11 +22,6 @@ public class Gpu {
     @Column(name = "avg_bench")
     private double avgBench;
 
-    @Column(name = "price")
-    private BigDecimal price;
-
-    @Column(name = "name")
-    private String name;
 }
 
 

@@ -2,6 +2,7 @@ package com.computerservice.config.rest;
 
 import com.computerservice.entity.pc.gpu.Gpu;
 import com.computerservice.entity.pc.motherboard.Motherboard;
+import com.computerservice.entity.pc.motherboard.SupportedCpu;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
@@ -38,6 +39,7 @@ public class RestConfig implements RepositoryRestConfigurer {
         disableHttpMethods(config, unsupportedMethods, PowerSupply.class);
         disableHttpMethods(config, unsupportedMethods, Ram.class);
         disableHttpMethods(config, unsupportedMethods, Processor.class);
+        disableHttpMethods(config, unsupportedMethods, SupportedCpu.class);
 
         exposeIds(config);
     }

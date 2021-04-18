@@ -1,19 +1,16 @@
 package com.computerservice.entity.pc.processor;
 
+import com.computerservice.entity.pc.PcComponent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "processor")
-public class Processor {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private BigInteger id;
+public class Processor extends PcComponent {
 
     @Column(name = "socket")
     private String socket;
@@ -23,12 +20,6 @@ public class Processor {
 
     @Column(name = "core8pts")
     private double core8pts;
-
-    @Column(name = "price")
-    private BigDecimal price;
-
-    @Column(name = "name")
-    private String name;
 
 }
 
