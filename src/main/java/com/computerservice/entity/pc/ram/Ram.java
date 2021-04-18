@@ -1,19 +1,16 @@
 package com.computerservice.entity.pc.ram;
 
+import com.computerservice.entity.pc.PcComponent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "ram")
-public class Ram {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private BigInteger id;
+public class Ram extends PcComponent {
 
     @Column(name = "capacity")
     private int capacity;
@@ -30,9 +27,4 @@ public class Ram {
     @Column(name = "avg_bench")
     private double avgBench;
 
-    @Column(name = "price")
-    private BigDecimal price;
-
-    @Column(name = "name")
-    private String name;
 }

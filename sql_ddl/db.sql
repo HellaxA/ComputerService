@@ -142,6 +142,8 @@ INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2
 INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2', '14');
 INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2', '20');
 INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2', '26');
+INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2', '16');
+INSERT INTO gpu_interface (power_supply_pin, gpu_interface_value) VALUES ('4*6+2', '22');
 
 
 DROP TABLE IF EXISTS processor_interface;
@@ -154,18 +156,6 @@ INSERT INTO processor_interface (power_supply_pin, processor_interface_value) VA
 INSERT INTO processor_interface (power_supply_pin, processor_interface_value) VALUES ('4+4', '4');
 INSERT INTO processor_interface (power_supply_pin, processor_interface_value) VALUES ('2', '2');
 
-
-DROP TABLE IF EXISTS pc;
-CREATE TABLE pc (
-                    id serial PRIMARY KEY NOT NULL,
-                    power_supply_id bigint NOT NULL,
-                    motherboard_id bigint NOT NULL,
-                    gpu_id bigint NOT NULL,
-                    processor_id bigint NOT NULL,
-                    ram_id bigint NOT NULL,
-                    name bigint NOT NULL,
-                    price decimal NOT NULL
-);
 create table supported_cpu
 (
     id             bigserial PRIMARY KEY NOT NULL,
@@ -175,11 +165,34 @@ create table supported_cpu
 
 ALTER TABLE supported_cpu ADD CONSTRAINT motherboard_id_fk0 FOREIGN KEY (motherboard_id) REFERENCES motherboard(id);
 INSERT INTO supported_cpu(motherboard_id, cpu_generation) VALUES (1, 'i7');
+INSERT INTO supported_cpu(motherboard_id, cpu_generation) VALUES (2, 'i5');
 
 
+DROP TABLE IF EXISTS pc;
+CREATE TABLE pc (
+                    id serial PRIMARY KEY NOT NULL,
+                    power_supply_id bigint NOT NULL,
+                    motherboard_id bigint NOT NULL,
+                    processor_id bigint NOT NULL,
+                    ram_id bigint NOT NULL,
+                    name varchar(200) NOT NULL,
+                    price decimal NOT NULL
+);
 ALTER TABLE pc ADD CONSTRAINT pc_fk0 FOREIGN KEY (power_supply_id) REFERENCES power_supply(id);
 ALTER TABLE pc ADD CONSTRAINT pc_fk1 FOREIGN KEY (motherboard_id) REFERENCES motherboard(id);
-ALTER TABLE pc ADD CONSTRAINT pc_fk2 FOREIGN KEY (gpu_id) REFERENCES gpu(id);
 ALTER TABLE pc ADD CONSTRAINT pc_fk3 FOREIGN KEY (processor_id) REFERENCES processor(id);
 ALTER TABLE pc ADD CONSTRAINT pc_fk4 FOREIGN KEY (ram_id) REFERENCES ram(id);
+INSERT INTO pc(power_supply_id, motherboard_id, processor_id, ram_id, name, price) VALUES (1, 1, 2, 1, 'Test', 1000);
 
+
+
+DROP TABLE IF EXISTS pc_gpus;
+CREATE TABLE pc_gpus (
+                         id serial PRIMARY KEY NOT NULL,
+                         pc_id bigint NOT NULL,
+                         gpu_id bigint NOT NULL
+);
+ALTER TABLE pc_gpus ADD CONSTRAINT pc_gpus_fk1 FOREIGN KEY (gpu_id) REFERENCES gpu(id);
+ALTER TABLE pc_gpus ADD CONSTRAINT pc_gpus_fk2 FOREIGN KEY (pc_id) REFERENCES pc(id);
+INSERT INTO pc_gpus(pc_id, gpu_id) VALUES (1, 2);
+INSERT INTO pc_gpus(pc_id, gpu_id) VALUES (1, 1);

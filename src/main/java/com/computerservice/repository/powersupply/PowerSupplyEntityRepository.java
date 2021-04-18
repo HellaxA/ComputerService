@@ -13,6 +13,4 @@ import java.math.BigInteger;
 @RepositoryRestResource(collectionResourceRel = "power-supplies", path = "power-supplies")
 public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<PowerSupply, BigInteger> {
     Page<PowerSupply> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
-
-
 }

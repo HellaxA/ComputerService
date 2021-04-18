@@ -1,19 +1,16 @@
 package com.computerservice.entity.pc.motherboard;
 
+import com.computerservice.entity.pc.PcComponent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "motherboard")
-public class Motherboard {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private BigInteger id;
+public class Motherboard extends PcComponent {
 
     @Column(name = "socket")
     private String socket;
@@ -41,10 +38,4 @@ public class Motherboard {
 
     @Column(name="m2")
     private boolean m2;
-
-    @Column(name = "price")
-    private BigDecimal price;
-
-    @Column(name = "name")
-    private String name;
 }

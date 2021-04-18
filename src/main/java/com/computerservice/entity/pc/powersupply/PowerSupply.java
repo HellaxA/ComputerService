@@ -1,19 +1,16 @@
 package com.computerservice.entity.pc.powersupply;
 
+import com.computerservice.entity.pc.PcComponent;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
 @Entity
 @Table(name = "power_supply")
-public class PowerSupply {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private BigInteger id;
+public class PowerSupply extends PcComponent {
 
     @Column(name = "motherboard_power_pin")
     private String motherboardPowerPin;
@@ -27,9 +24,4 @@ public class PowerSupply {
     @Column(name = "power")
     private int power;
 
-    @Column(name = "price")
-    private BigDecimal price;
-
-    @Column(name = "name")
-    private String name;
 }
