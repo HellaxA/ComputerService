@@ -4,14 +4,12 @@ import com.computerservice.entity.pc.pc.PcRequestDto;
 import com.computerservice.entity.pc.pc.PcResponseDto;
 import com.computerservice.service.pc.PcCompatibilityCheckService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/pc/compatibility")
+@RequestMapping("/pc/compatibility")
+@CrossOrigin(origins = "${frontend.url}")
 public class PcCompatibilityCheckController {
 
     private final PcCompatibilityCheckService pcCompatibilityCheckService;
