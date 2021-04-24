@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/pc/compatibility")
+@RequestMapping("/pc/compatibility")
 public class PcCompatibilityCheckController {
 
     private final PcCompatibilityCheckService pcCompatibilityCheckService;
