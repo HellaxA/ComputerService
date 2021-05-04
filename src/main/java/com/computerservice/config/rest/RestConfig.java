@@ -7,12 +7,15 @@ import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
 import org.springframework.beans.factory.annotation.Autowired;
+Aimport org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.rest.core.config.RepositoryRestConfiguration;
 import org.springframework.data.rest.core.mapping.ExposureConfiguration;
 import org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import javax.persistence.EntityManager;
 import javax.persistence.metamodel.EntityType;
@@ -23,7 +26,10 @@ import java.util.Set;
 @Configuration
 public class RestConfig implements RepositoryRestConfigurer {
 
-    private EntityManager theEntityManager;
+    private final EntityManager theEntityManager;
+
+    @Value("${FRONTEND_URL}")
+    private String frontend_url;
 
     @Autowired
     public RestConfig(EntityManager theEntityManager) {
@@ -63,5 +69,15 @@ public class RestConfig implements RepositoryRestConfigurer {
 
         Class[] domainTypes = entities.toArray(new Class[0]);
         config.exposeIdsFor(domainTypes);
+    }
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**").allowedOrigins(frontend_url);
+            }
+        };
     }
 }
