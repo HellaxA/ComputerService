@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/pc/compatibility")
-@CrossOrigin(origins = "${frontend.url}")
 public class PcCompatibilityCheckController {
 
     private final PcCompatibilityCheckService pcCompatibilityCheckService;
