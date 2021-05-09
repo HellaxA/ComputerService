@@ -7,7 +7,7 @@ import java.util.Map;
 
 @Data
 @AllArgsConstructor
-public class PcResponseDto {
+public class PcCompatibilityCheckResponseDto {
     private boolean isPowerSupplyCompatibleWithMotherboardPower;
     private boolean isPowerSupplyCompatibleWithMotherboardCpuPower;
     private boolean isProcessorCompatibleWithMotherboardSocket;
