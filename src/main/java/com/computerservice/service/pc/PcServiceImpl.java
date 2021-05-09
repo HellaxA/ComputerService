@@ -6,7 +6,6 @@ import com.computerservice.entity.pc.pc.*;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
-import com.computerservice.exception.gpu.GpuNotFoundException;
 import com.computerservice.exception.motherboard.MotherboardNotFoundException;
 import com.computerservice.exception.powersupply.PowerSupplyNotFoundException;
 import com.computerservice.exception.processor.ProcessorNotFoundException;
@@ -45,6 +44,7 @@ public class PcServiceImpl implements PcService {
     private final ProcessorCompatibilityCheckService processorCompatibilityCheckService;
     private final RamCompatibilityCheckService ramCompatibilityCheckService;
 
+    @Override
     public PcCompatibilityCheckResponseDto checkPcCompatibility(PcRequestDto pcRequestDto) {
         BigInteger powerSupplyId = pcRequestDto.getPowerSupplyId();
         BigInteger motherboardId = pcRequestDto.getMotherboardId();
@@ -65,8 +65,7 @@ public class PcServiceImpl implements PcService {
                 .findById(processorId)
                 .orElseThrow(ProcessorNotFoundException::new);
 
-        List<Gpu> gpus = getAllGpusById(gpuIds);
-
+        List<Gpu> gpus = gpuEntityRepository.findByIdIn(gpuIds);
 
         boolean isPowerSupplyCompatibleWithMotherboardPower = powerSupplyCompatibilityCheckService
                 .checkCompatibilityWithMotherboardPower(powerSupply, motherboard);
@@ -134,7 +133,43 @@ public class PcServiceImpl implements PcService {
         return pcCompListDto;
     }
 
-    private void powerSupplyFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto, Processor pcu, Motherboard mb, List<Gpu> gpus, PcCompListDto pcCompListDto) {
+    @Override
+    public PcCompListDto proposeComponents(PcRequestDto pcRequestDto) {
+        BigInteger mbId = pcRequestDto.getMotherboardId();
+        BigInteger cpuId = pcRequestDto.getProcessorId();
+        BigInteger ramId = pcRequestDto.getRamId();
+        BigInteger psId = pcRequestDto.getPowerSupplyId();
+        List<BigInteger> gpuIds = pcRequestDto.getGpuIds();
+
+        Motherboard mb;
+        Processor cpu;
+        Ram ram;
+        PowerSupply ps;
+        List<Gpu> gpus;
+
+        if (mbId != null) {
+            mb = motherboardEntityRepository.findById(mbId).orElseThrow(MotherboardNotFoundException::new);
+        }
+        if (cpuId != null) {
+            cpu = processorEntityRepository.findById(cpuId).orElseThrow(ProcessorNotFoundException::new);
+        }
+        if (ramId != null) {
+            ram = ramEntityRepository.findById(ramId).orElseThrow(RamNotFoundException::new);
+        }
+        if (psId != null) {
+            ps = powerSupplyEntityRepository.findById(psId).orElseThrow(PowerSupplyNotFoundException::new);
+        }
+        if (gpuIds != null && !gpuIds.isEmpty()) {
+            gpus = gpuEntityRepository.findByIdIn(gpuIds);
+        }
+
+
+        return null;
+    }
+
+    private void powerSupplyFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                Processor pcu, Motherboard mb, List<Gpu> gpus,
+                                PcCompListDto pcCompListDto) {
 
         Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
         boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
@@ -144,7 +179,9 @@ public class PcServiceImpl implements PcService {
                 !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower() ||
                 !areGpusValid
         ) {
+
             List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(pcu, mb, gpus);
+
             if (!powerSupplies.isEmpty()) {
                 for (Map.Entry<String, String> pair : gpuResponse.entrySet()) {
                     if (!pair.getValue().equals("Ok")) {
@@ -188,11 +225,12 @@ public class PcServiceImpl implements PcService {
 
     private List<PowerSupply> getCompatiblePowerSupplies(Processor pcu, Motherboard mb, List<Gpu> gpus) {
         int cpuTdp = pcu.getTdp();
-        int gpuTdp = gpus.stream().mapToInt(Gpu::getTdp).sum();
+
+        int gpuTdp = gpus != null ? gpus.stream().mapToInt(Gpu::getTdp).sum() : 0;
         int tdp = cpuTdp + gpuTdp + APPROXIMATE_ADDITIONAL_TDP;
 
-        String gpuAddPowerPin1 = gpus.size() == 1 ? gpus.get(0).getAddPower() : "%";
-        String gpuAddPowerPin2 = gpus.size() == 2 ? gpus.get(1).getAddPower() : "%";
+        String gpuAddPowerPin1 = gpus != null && gpus.size() == 1 ? gpus.get(0).getAddPower() : "%";
+        String gpuAddPowerPin2 = gpus != null && gpus.size() == 2 ? gpus.get(1).getAddPower() : "%";
         return powerSupplyEntityRepository.findCompatiblePowerSupply(
                 gpuAddPowerPin1,
                 gpuAddPowerPin2,
@@ -210,22 +248,6 @@ public class PcServiceImpl implements PcService {
                 mb.getRamType(),
                 ram.getPrice()
         );
-    }
-
-    //TODO change query to select with OR   -findByIdIn
-    private List<Gpu> getAllGpusById(List<BigInteger> gpuIds) {
-        if (!gpuIds.isEmpty()) {
-            List<Gpu> gpus = new ArrayList<>(gpuIds.size());
-            gpuIds.forEach(id -> {
-                Gpu gpu = gpuEntityRepository
-                        .findById(id)
-                        .orElseThrow(GpuNotFoundException::new);
-                gpus.add(gpu);
-            });
-            return gpus;
-        }
-        return Collections.emptyList();
-
     }
 
     private List<Processor> getCompatibleProcessors(Processor pcu, Motherboard mb) {

@@ -9,4 +9,6 @@ public interface PcService {
     PcCompatibilityCheckResponseDto checkPcCompatibility(PcRequestDto pcRequestDto);
 
     PcCompListDto fixComputerAssembly(PcReqAndResDto pcReqAndResDto);
+
+    PcCompListDto proposeComponents(PcRequestDto pcRequestDto);
 }

@@ -22,5 +22,10 @@ public class PcController {
         return pcService.fixComputerAssembly(pcReqAndResDto);
     }
 
+    @PostMapping("/propose")
+    public PcCompListDto proposeComponents(@RequestBody PcRequestDto pcRequestDto) {
+        return pcService.proposeComponents(pcRequestDto);
+    }
+
 
 }
