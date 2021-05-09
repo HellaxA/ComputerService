@@ -20,7 +20,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PowerSupplyCompatibilityCheckServiceImpl implements PowerSupplyCompatibilityCheckService {
 
-    private static final int APPROXIMATE_ADDITIONAL_TDP = 100;
+    public static final int APPROXIMATE_ADDITIONAL_TDP = 100;
     private static final String OK = "Ok";
     public static final String NO_AVAILABLE_GPU_ADDITIONAL_POWER = "No available gpu additional power.";
     public static final String NOT_ENOUGH_POWER_SUPPLY_PINS = "Not enough power supply pins.";
