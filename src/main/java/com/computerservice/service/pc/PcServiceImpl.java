@@ -174,7 +174,6 @@ public class PcServiceImpl implements PcService {
 
         if (ramId != null) {
             ram = ramEntityRepository.findById(ramId).orElseThrow(RamNotFoundException::new);
-
         } else {
             ramMaxPrice = maxPrices.getRamMaxPrice();
         }
@@ -193,11 +192,21 @@ public class PcServiceImpl implements PcService {
             gpuMaxPrice = maxPrices.getGpuMaxPrice();
         }
 
+
         mb = getMotherboardProposal(mbMaxPrice, mb, cpu, ram, ps, gpus);
-        cpu = getProcessorProposal(processorMaxPrice, mb, cpu);
-        List<Ram> rams = getRamProposal(ramMaxPrice, mb, ram);
-        gpus = getGpusProposal(gpuMaxPrice, cpu, ps, gpus);
-        ps = getPowerSupplyProposal(powerSupplyMaxPrice, mb, cpu, ps, gpus);
+        if (cpu == null) {
+            cpu = getProcessorProposal(processorMaxPrice, mb);
+        }
+
+        if (gpus == null) {
+            gpus = getGpusProposal(gpuMaxPrice, cpu, ps);
+        }
+
+        if (ps == null) {
+            ps = getPowerSupplyProposal(powerSupplyMaxPrice, mb, cpu, gpus);
+        }
+        List<Ram> rams = ram == null ? getRamProposal(ramMaxPrice, mb) : List.of(ram);
+
 
         PcRequestDto proposedPc = new PcRequestDto();
         proposedPc.setPowerSupplyId(ps.getId());
@@ -211,61 +220,50 @@ public class PcServiceImpl implements PcService {
         return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
     }
 
-    private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, PowerSupply ps, List<Gpu> gpus) {
-        if (ps == null) {
-            List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus.subList(0, 1), powerSupplyMaxPrice);
-            if (!powerSupplies.isEmpty()) {
-                ps = powerSupplies.get(0);
-            } else {
-                throw new PowerSupplyNotFoundException();
-            }
+    private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, List<Gpu> gpus) {
+        List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus.subList(0, 1), powerSupplyMaxPrice);
+        if (!powerSupplies.isEmpty()) {
+            return powerSupplies.get(0);
+        } else {
+            throw new PowerSupplyNotFoundException();
         }
-        return ps;
     }
 
-    private List<Gpu> getGpusProposal(BigDecimal gpuMaxPrice, Processor cpu, PowerSupply ps, List<Gpu> gpus) {
-        if (gpus == null) {
-            gpus = new ArrayList<>();
-            Gpu gpu;
-            if (ps == null) {
-                gpu = gpuEntityRepository
-                        .findFirstByPriceLessThanEqualOrderByPriceAsc(gpuMaxPrice)
-                        .orElseThrow(GpuNotFoundException::new);
-            } else {
-                int cpuTdp = cpu.getTdp();
-                gpu = gpuEntityRepository
-                        .findCompatibleGpuWithPS(gpuMaxPrice, ps.getPower() - cpuTdp - APPROXIMATE_ADDITIONAL_TDP)
-                        .orElseThrow(GpuNotFoundException::new);
-            }
-            gpus.add(gpu);
+    private List<Gpu> getGpusProposal(BigDecimal gpuMaxPrice, Processor cpu, PowerSupply ps) {
 
+        List<Gpu> gpus = new ArrayList<>();
+        Gpu gpu;
+        if (ps == null) {
+            gpu = gpuEntityRepository
+                    .findFirstByPriceLessThanEqualOrderByAvgBenchDesc(gpuMaxPrice)
+                    .orElseThrow(GpuNotFoundException::new);
+        } else {
+            int cpuTdp = cpu.getTdp();
+            gpu = gpuEntityRepository
+                    .findCompatibleGpuWithPS(gpuMaxPrice, ps.getPower() - cpuTdp - APPROXIMATE_ADDITIONAL_TDP)
+                    .orElseThrow(GpuNotFoundException::new);
         }
+        gpus.add(gpu);
+
+
         return gpus;
     }
 
-    private List<Ram> getRamProposal(BigDecimal ramMaxPrice, Motherboard mb, Ram ram) {
-        List<Ram> rams = null;
-        if (ram == null) {
-            rams = ramEntityRepository.findTop3RamsProposals(
-                    ramMaxPrice,
-                    mb.getRamType(),
-                    mb.getNumRam(),
-                    mb.getMaxRam()
-            );
-
-
-        }
+    private List<Ram> getRamProposal(BigDecimal ramMaxPrice, Motherboard mb) {
+        List<Ram> rams = ramEntityRepository.findTop5RamsProposals(
+                ramMaxPrice,
+                mb.getRamType(),
+                mb.getNumRam(),
+                mb.getMaxRam()
+        );
         if (rams == null || rams.isEmpty()) throw new RamNotFoundException();
         return rams;
     }
 
-    private Processor getProcessorProposal(BigDecimal processorMaxPrice, Motherboard mb, Processor cpu) {
-        if (cpu == null) {
-            cpu = processorEntityRepository
-                    .findFirstBySocketAndPriceLessThanEqualOrderByCore8ptsDesc(mb.getSocket(), processorMaxPrice)
-                    .orElseThrow(ProcessorNotFoundException::new);
-        }
-        return cpu;
+    private Processor getProcessorProposal(BigDecimal processorMaxPrice, Motherboard mb) {
+        return processorEntityRepository
+                .findFirstBySocketAndPriceLessThanEqualOrderByCore8ptsDesc(mb.getSocket(), processorMaxPrice)
+                .orElseThrow(ProcessorNotFoundException::new);
     }
 
     private Motherboard getMotherboardProposal(BigDecimal mbMaxPrice, Motherboard mb, Processor cpu, Ram ram, PowerSupply ps, List<Gpu> gpus) {
@@ -386,7 +384,7 @@ public class PcServiceImpl implements PcService {
 
     private List<Ram> getCompatibleRams(Motherboard mb, Ram ram) {
 
-        return ramEntityRepository.findTop3ByCapacityLessThanEqualAndAmountLessThanEqualAndTypeAndPriceLessThanEqualOrderByAvgBenchDesc(
+        return ramEntityRepository.findTop5ByCapacityLessThanEqualAndAmountLessThanEqualAndTypeAndPriceLessThanEqualOrderByAvgBenchDesc(
                 mb.getMaxRam() / ram.getAmount(),
                 mb.getNumRam(),
                 mb.getRamType(),
@@ -395,7 +393,7 @@ public class PcServiceImpl implements PcService {
     }
 
     private List<Processor> getCompatibleProcessors(Processor pcu, Motherboard mb) {
-        return processorEntityRepository.findTop3ByTdpLessThanEqualAndPriceLessThanEqualAndSocketOrderByCore8ptsDesc(
+        return processorEntityRepository.findTop5ByTdpLessThanEqualAndPriceLessThanEqualAndSocketOrderByCore8ptsDesc(
                 pcu.getTdp(),
                 pcu.getPrice(),
                 mb.getSocket()

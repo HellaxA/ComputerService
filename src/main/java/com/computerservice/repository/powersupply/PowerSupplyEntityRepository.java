@@ -37,7 +37,7 @@ public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<
                     "    from processor_interface " +
                     "    where processor_interface_value = ?4) " +
                     "  and power >= ?5 " +
-                    "  and price <= ?6 order by price limit 3 ",
+                    "  and price <= ?6 order by price limit 5 ",
             nativeQuery = true)
     List<PowerSupply> findCompatiblePowerSupply(String gpuAddPowerPin1,
                                                 String gpuAddPowerPin2,
