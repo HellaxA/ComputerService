@@ -16,7 +16,7 @@ import java.util.Optional;
 public interface MotherboardEntityRepository extends PagingAndSortingRepository<Motherboard, BigInteger> {
     Page<Motherboard> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
-    Optional<Motherboard> findFirstByPriceLessThanEqualOrderByPriceAsc(@Param("price") BigDecimal price);
+    Optional<Motherboard> findFirstByPriceLessThanEqualOrderByM2Desc(@Param("price") BigDecimal price);
 
     @Query(value = "select * " +
             "            from motherboard " +

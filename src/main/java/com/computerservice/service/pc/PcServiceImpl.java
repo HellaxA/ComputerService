@@ -6,6 +6,7 @@ import com.computerservice.entity.pc.pc.*;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
+import com.computerservice.exception.PcComponentNotFoundException;
 import com.computerservice.exception.gpu.GpuNotFoundException;
 import com.computerservice.exception.motherboard.MotherboardNotFoundException;
 import com.computerservice.exception.powersupply.PowerSupplyNotFoundException;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.computerservice.service.powersupply.PowerSupplyCompatibilityCheckServiceImpl.APPROXIMATE_ADDITIONAL_TDP;
 
@@ -68,7 +70,7 @@ public class PcServiceImpl implements PcService {
                 .findById(processorId)
                 .orElseThrow(ProcessorNotFoundException::new);
 
-        List<Gpu> gpus = gpuEntityRepository.findByIdIn(gpuIds);
+        List<Gpu> gpus = findAllGpusByIds(gpuIds);
 
         boolean isPowerSupplyCompatibleWithMotherboardPower = powerSupplyCompatibilityCheckService
                 .checkCompatibilityWithMotherboardPower(powerSupply, motherboard);
@@ -109,6 +111,14 @@ public class PcServiceImpl implements PcService {
         logPcCheckResponseDto(pcCheck);
 
         return pcCheck;
+    }
+
+    private List<Gpu> findAllGpusByIds(List<BigInteger> gpuIds) {
+        List<Gpu> gpus = new ArrayList<>();
+        for (BigInteger gpuId : gpuIds) {
+            gpus.add(gpuEntityRepository.findById(gpuId).orElseThrow(GpuNotFoundException::new));
+        }
+        return gpus;
     }
 
     @Override
@@ -186,12 +196,11 @@ public class PcServiceImpl implements PcService {
         }
 
         if (gpuIds != null && !gpuIds.isEmpty()) {
-            gpus = gpuEntityRepository.findByIdIn(gpuIds);
+            gpus = findAllGpusByIds(gpuIds);
 
         } else {
             gpuMaxPrice = maxPrices.getGpuMaxPrice();
         }
-
 
         mb = getMotherboardProposal(mbMaxPrice, mb, cpu, ram, ps, gpus);
         if (cpu == null) {
@@ -213,11 +222,23 @@ public class PcServiceImpl implements PcService {
         proposedPc.setMotherboardId(mb.getId());
         proposedPc.setProcessorId(cpu.getId());
         proposedPc.setRamId(rams.get(0).getId());
-        proposedPc.setGpuIds(List.of(gpus.get(0).getId()));
-
+        proposedPc.setGpuIds(gpus.stream().map(Gpu::getId).collect(Collectors.toList()));
         PcCompatibilityCheckResponseDto pcCompCheck = checkPcCompatibility(proposedPc);
 
-        return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
+        boolean isCompatible = pcCompCheck.isRamTypeCompatibleWithMotherboard() &&
+                pcCompCheck.isRamAmountCompatibleWithMotherboard() &&
+                pcCompCheck.isRamGbAmountCompatibleWithMotherboard() &&
+                pcCompCheck.isProcessorCompatibleWithMotherboardSocket() &&
+                pcCompCheck.isTdpValid() &&
+                pcCompCheck.isPowerSupplyCompatibleWithMotherboardPower() &&
+                pcCompCheck.isPowerSupplyCompatibleWithMotherboardCpuPower() &&
+                PcServiceUtils.areGpusValid(pcCompCheck.getPowerSupplyCompatibilityWithGpuPower());
+
+        if (isCompatible) {
+            return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
+        }
+
+        throw new PcComponentNotFoundException();
     }
 
     private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, List<Gpu> gpus) {
@@ -270,7 +291,7 @@ public class PcServiceImpl implements PcService {
         if (mb == null) {
             if (cpu == null && ram == null && gpus == null && ps == null) {
                 mb = motherboardEntityRepository
-                        .findFirstByPriceLessThanEqualOrderByPriceAsc(mbMaxPrice)
+                        .findFirstByPriceLessThanEqualOrderByM2Desc(mbMaxPrice)
                         .orElseThrow(MotherboardNotFoundException::new);
             } else {
                 String socket = "%";
