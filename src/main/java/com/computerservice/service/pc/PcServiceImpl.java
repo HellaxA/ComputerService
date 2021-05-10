@@ -225,6 +225,7 @@ public class PcServiceImpl implements PcService {
         proposedPc.setGpuIds(gpus.stream().map(Gpu::getId).collect(Collectors.toList()));
         PcCompatibilityCheckResponseDto pcCompCheck = checkPcCompatibility(proposedPc);
 
+        //TODO Create new method not to SELECT all the modules again
         boolean isCompatible = pcCompCheck.isRamTypeCompatibleWithMotherboard() &&
                 pcCompCheck.isRamAmountCompatibleWithMotherboard() &&
                 pcCompCheck.isRamGbAmountCompatibleWithMotherboard() &&
