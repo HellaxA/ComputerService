@@ -221,7 +221,7 @@ public class PcServiceImpl implements PcService {
     }
 
     private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, List<Gpu> gpus) {
-        List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus.subList(0, 1), powerSupplyMaxPrice);
+        List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus, powerSupplyMaxPrice);
         if (!powerSupplies.isEmpty()) {
             return powerSupplies.get(0);
         } else {
