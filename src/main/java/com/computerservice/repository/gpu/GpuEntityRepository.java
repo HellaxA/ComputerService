@@ -19,7 +19,7 @@ public interface GpuEntityRepository extends PagingAndSortingRepository<Gpu, Big
 
     List<Gpu> findByIdIn(List<BigInteger> ids);
 
-    Optional<Gpu> findFirstByPriceLessThanEqualOrderByPriceAsc(
+    Optional<Gpu> findFirstByPriceLessThanEqualOrderByAvgBenchDesc(
             @Param("price") BigDecimal price
     );
 

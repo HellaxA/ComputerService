@@ -18,7 +18,7 @@ public interface RamEntityRepository extends PagingAndSortingRepository<Ram, Big
             @Param("name") String name,
             Pageable pageable);
 
-    List<Ram> findTop3ByCapacityLessThanEqualAndAmountLessThanEqualAndTypeAndPriceLessThanEqualOrderByAvgBenchDesc(
+    List<Ram> findTop5ByCapacityLessThanEqualAndAmountLessThanEqualAndTypeAndPriceLessThanEqualOrderByAvgBenchDesc(
             @Param("maxRam") int maxRam,
             @Param("numRam") int numRam,
             @Param("ramType") String ramType,
@@ -30,9 +30,9 @@ public interface RamEntityRepository extends PagingAndSortingRepository<Ram, Big
             "and type = ?2 " +
             "and amount <= ?3 " +
             "and capacity * amount <= ?4 " +
-            "ORDER BY avg_bench desc",
+            "ORDER BY avg_bench desc LIMIT 5",
              nativeQuery = true)
-    List<Ram> findTop3RamsProposals(
+    List<Ram> findTop5RamsProposals(
             @Param("price") BigDecimal price,
             @Param("type") String type,
             @Param("numRam") int numRam,

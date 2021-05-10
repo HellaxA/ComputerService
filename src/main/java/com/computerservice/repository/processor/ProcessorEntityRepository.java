@@ -17,7 +17,7 @@ public interface ProcessorEntityRepository extends PagingAndSortingRepository<Pr
     Page<Processor> findByNameContainingIgnoreCase(
             @Param("name") String name, Pageable pageable);
 
-    List<Processor> findTop3ByTdpLessThanEqualAndPriceLessThanEqualAndSocketOrderByCore8ptsDesc(
+    List<Processor> findTop5ByTdpLessThanEqualAndPriceLessThanEqualAndSocketOrderByCore8ptsDesc(
             @Param("tdp") int tdp,
             @Param("price") BigDecimal price,
             @Param("motherboardSocket") String motherboardSocket
