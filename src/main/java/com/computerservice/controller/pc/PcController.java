@@ -23,8 +23,8 @@ public class PcController {
     }
 
     @PostMapping("/propose")
-    public PcCompListDto proposeComponents(@RequestBody PcRequestDto pcRequestDto) {
-        return pcService.proposeComponents(pcRequestDto);
+    public PcCompListDto proposeComponents(@RequestBody PcIdsWithMaxPriceDto pcIdsWithMaxPriceDto) {
+        return pcService.proposeComponents(pcIdsWithMaxPriceDto);
     }
 
 

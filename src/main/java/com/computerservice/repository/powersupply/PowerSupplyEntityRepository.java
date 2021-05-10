@@ -9,6 +9,7 @@ import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -35,12 +36,14 @@ public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<
                     "    select power_supply_pin " +
                     "    from processor_interface " +
                     "    where processor_interface_value = ?4) " +
-                    "  and power >= ?5 order by price limit 3 ",
+                    "  and power >= ?5 " +
+                    "  and price <= ?6 order by price limit 3 ",
             nativeQuery = true)
     List<PowerSupply> findCompatiblePowerSupply(String gpuAddPowerPin1,
                                                 String gpuAddPowerPin2,
                                                 String motherboardPowerPin,
                                                 String processorPowerPin,
-                                                int tdp
+                                                int tdp,
+                                                BigDecimal price
     );
 }
