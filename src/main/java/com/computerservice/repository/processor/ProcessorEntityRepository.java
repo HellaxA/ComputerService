@@ -10,6 +10,7 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 @RepositoryRestResource
 public interface ProcessorEntityRepository extends PagingAndSortingRepository<Processor, BigInteger> {
@@ -20,6 +21,11 @@ public interface ProcessorEntityRepository extends PagingAndSortingRepository<Pr
             @Param("tdp") int tdp,
             @Param("price") BigDecimal price,
             @Param("motherboardSocket") String motherboardSocket
+    );
+
+    Optional<Processor> findFirstBySocketAndPriceLessThanEqualOrderByCore8ptsDesc(
+            @Param("socket") String socket,
+            @Param("price") BigDecimal price
     );
 }
 

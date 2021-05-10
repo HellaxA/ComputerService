@@ -6,6 +6,7 @@ import com.computerservice.entity.pc.pc.*;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
+import com.computerservice.exception.gpu.GpuNotFoundException;
 import com.computerservice.exception.motherboard.MotherboardNotFoundException;
 import com.computerservice.exception.powersupply.PowerSupplyNotFoundException;
 import com.computerservice.exception.processor.ProcessorNotFoundException;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +37,7 @@ import static com.computerservice.service.powersupply.PowerSupplyCompatibilityCh
 @Log
 public class PcServiceImpl implements PcService {
 
+    public static final BigDecimal MAX_PRICE = new BigDecimal(100000);
     private final PowerSupplyEntityRepository powerSupplyEntityRepository;
     private final MotherboardEntityRepository motherboardEntityRepository;
     private final GpuEntityRepository gpuEntityRepository;
@@ -134,37 +137,176 @@ public class PcServiceImpl implements PcService {
     }
 
     @Override
-    public PcCompListDto proposeComponents(PcRequestDto pcRequestDto) {
+    public PcCompListDto proposeComponents(PcIdsWithMaxPriceDto pcIdsWithMaxPriceDto) {
+        PcRequestDto pcRequestDto = pcIdsWithMaxPriceDto.getPcRequestDto();
+        MaxPrices maxPrices = pcIdsWithMaxPriceDto.getMaxPrices();
+
         BigInteger mbId = pcRequestDto.getMotherboardId();
         BigInteger cpuId = pcRequestDto.getProcessorId();
         BigInteger ramId = pcRequestDto.getRamId();
         BigInteger psId = pcRequestDto.getPowerSupplyId();
         List<BigInteger> gpuIds = pcRequestDto.getGpuIds();
 
-        Motherboard mb;
-        Processor cpu;
-        Ram ram;
-        PowerSupply ps;
-        List<Gpu> gpus;
+        BigDecimal mbMaxPrice = null;
+        BigDecimal gpuMaxPrice = null;
+        BigDecimal ramMaxPrice = null;
+        BigDecimal powerSupplyMaxPrice = null;
+        BigDecimal processorMaxPrice = null;
+
+        Motherboard mb = null;
+        Processor cpu = null;
+        Ram ram = null;
+        PowerSupply ps = null;
+        List<Gpu> gpus = null;
 
         if (mbId != null) {
             mb = motherboardEntityRepository.findById(mbId).orElseThrow(MotherboardNotFoundException::new);
+        } else {
+            mbMaxPrice = maxPrices.getMotherboardMaxPrice();
         }
+
         if (cpuId != null) {
             cpu = processorEntityRepository.findById(cpuId).orElseThrow(ProcessorNotFoundException::new);
+
+        } else {
+            processorMaxPrice = maxPrices.getProcessorMaxPrice();
         }
+
         if (ramId != null) {
             ram = ramEntityRepository.findById(ramId).orElseThrow(RamNotFoundException::new);
+
+        } else {
+            ramMaxPrice = maxPrices.getRamMaxPrice();
         }
+
         if (psId != null) {
             ps = powerSupplyEntityRepository.findById(psId).orElseThrow(PowerSupplyNotFoundException::new);
+
+        } else {
+            powerSupplyMaxPrice = maxPrices.getPowerSupplyMaxPrice();
         }
+
         if (gpuIds != null && !gpuIds.isEmpty()) {
             gpus = gpuEntityRepository.findByIdIn(gpuIds);
+
+        } else {
+            gpuMaxPrice = maxPrices.getGpuMaxPrice();
         }
 
+        mb = getMotherboardProposal(mbMaxPrice, mb, cpu, ram, ps, gpus);
+        cpu = getProcessorProposal(processorMaxPrice, mb, cpu);
+        List<Ram> rams = getRamProposal(ramMaxPrice, mb, ram);
+        gpus = getGpusProposal(gpuMaxPrice, cpu, ps, gpus);
+        ps = getPowerSupplyProposal(powerSupplyMaxPrice, mb, cpu, ps, gpus);
 
-        return null;
+        PcRequestDto proposedPc = new PcRequestDto();
+        proposedPc.setPowerSupplyId(ps.getId());
+        proposedPc.setMotherboardId(mb.getId());
+        proposedPc.setProcessorId(cpu.getId());
+        proposedPc.setRamId(rams.get(0).getId());
+        proposedPc.setGpuIds(List.of(gpus.get(0).getId()));
+
+        PcCompatibilityCheckResponseDto pcCompCheck = checkPcCompatibility(proposedPc);
+
+        return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
+    }
+
+    private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, PowerSupply ps, List<Gpu> gpus) {
+        if (ps == null) {
+            List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus.subList(0, 1), powerSupplyMaxPrice);
+            if (!powerSupplies.isEmpty()) {
+                ps = powerSupplies.get(0);
+            } else {
+                throw new PowerSupplyNotFoundException();
+            }
+        }
+        return ps;
+    }
+
+    private List<Gpu> getGpusProposal(BigDecimal gpuMaxPrice, Processor cpu, PowerSupply ps, List<Gpu> gpus) {
+        if (gpus == null) {
+            gpus = new ArrayList<>();
+            Gpu gpu;
+            if (ps == null) {
+                gpu = gpuEntityRepository
+                        .findFirstByPriceLessThanEqualOrderByPriceAscAvgBenchDesc(gpuMaxPrice)
+                        .orElseThrow(GpuNotFoundException::new);
+            } else {
+                int cpuTdp = cpu.getTdp();
+                gpu = gpuEntityRepository
+                        .findCompatibleGpuWithPS(gpuMaxPrice, ps.getPower() - cpuTdp - APPROXIMATE_ADDITIONAL_TDP)
+                        .orElseThrow(GpuNotFoundException::new);
+            }
+            gpus.add(gpu);
+
+        }
+        return gpus;
+    }
+
+    private List<Ram> getRamProposal(BigDecimal ramMaxPrice, Motherboard mb, Ram ram) {
+        List<Ram> rams = null;
+        if (ram == null) {
+            rams = ramEntityRepository.findTop3RamsProposals(
+                    ramMaxPrice,
+                    mb.getRamType(),
+                    mb.getNumRam(),
+                    mb.getMaxRam()
+            );
+
+
+        }
+        if (rams == null || rams.isEmpty()) throw new RamNotFoundException();
+        return rams;
+    }
+
+    private Processor getProcessorProposal(BigDecimal processorMaxPrice, Motherboard mb, Processor cpu) {
+        if (cpu == null) {
+            cpu = processorEntityRepository
+                    .findFirstBySocketAndPriceLessThanEqualOrderByCore8ptsDesc(mb.getSocket(), processorMaxPrice)
+                    .orElseThrow(ProcessorNotFoundException::new);
+        }
+        return cpu;
+    }
+
+    private Motherboard getMotherboardProposal(BigDecimal mbMaxPrice, Motherboard mb, Processor cpu, Ram ram, PowerSupply ps, List<Gpu> gpus) {
+        if (mb == null) {
+            if (cpu == null && ram == null && gpus == null && ps == null) {
+                mb = motherboardEntityRepository
+                        .findFirstByPriceLessThanEqualOrderByPriceAscM2AscMaxRamDescNumRamDesc(mbMaxPrice)
+                        .orElseThrow(MotherboardNotFoundException::new);
+            } else {
+                String socket = "%";
+                if (cpu != null) {
+                    socket = cpu.getSocket();
+                }
+
+                int amount = 0;
+                int minGbAmount = 0;
+                if (ram != null) {
+                    amount = ram.getAmount();
+                    minGbAmount = ram.getAmount() * ram.getCapacity();
+                }
+
+                String motherboardPowerPin = "%";
+                String motherboardCpuPowerPin = "%";
+                if (ps != null) {
+                    motherboardPowerPin = ps.getMotherboardPowerPin();
+                    motherboardCpuPowerPin = ps.getProcessorPowerPin();
+                }
+
+                mb = motherboardEntityRepository
+                        .findCompatibleMotherboardWithCpuRamPS(
+                                socket,
+                                amount,
+                                minGbAmount,
+                                motherboardPowerPin,
+                                motherboardCpuPowerPin,
+                                mbMaxPrice
+                        )
+                        .orElseThrow(MotherboardNotFoundException::new);
+            }
+        }
+        return mb;
     }
 
     private void powerSupplyFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
@@ -180,7 +322,7 @@ public class PcServiceImpl implements PcService {
                 !areGpusValid
         ) {
 
-            List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(pcu, mb, gpus);
+            List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(pcu, mb, gpus, MAX_PRICE);
 
             if (!powerSupplies.isEmpty()) {
                 for (Map.Entry<String, String> pair : gpuResponse.entrySet()) {
@@ -223,7 +365,7 @@ public class PcServiceImpl implements PcService {
         }
     }
 
-    private List<PowerSupply> getCompatiblePowerSupplies(Processor pcu, Motherboard mb, List<Gpu> gpus) {
+    private List<PowerSupply> getCompatiblePowerSupplies(Processor pcu, Motherboard mb, List<Gpu> gpus, BigDecimal maxPrice) {
         int cpuTdp = pcu.getTdp();
 
         int gpuTdp = gpus != null ? gpus.stream().mapToInt(Gpu::getTdp).sum() : 0;
@@ -231,12 +373,14 @@ public class PcServiceImpl implements PcService {
 
         String gpuAddPowerPin1 = gpus != null && gpus.size() == 1 ? gpus.get(0).getAddPower() : "%";
         String gpuAddPowerPin2 = gpus != null && gpus.size() == 2 ? gpus.get(1).getAddPower() : "%";
+
         return powerSupplyEntityRepository.findCompatiblePowerSupply(
                 gpuAddPowerPin1,
                 gpuAddPowerPin2,
                 mb.getPowerPin(),
                 mb.getProcessorPowerPin(),
-                tdp
+                tdp,
+                maxPrice
         );
     }
 
