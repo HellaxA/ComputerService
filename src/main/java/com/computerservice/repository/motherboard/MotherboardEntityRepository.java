@@ -10,14 +10,13 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Optional;
 
 @RepositoryRestResource
 public interface MotherboardEntityRepository extends PagingAndSortingRepository<Motherboard, BigInteger> {
     Page<Motherboard> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
-    Optional<Motherboard> findFirstByPriceLessThanEqualOrderByPriceAscM2AscMaxRamDescNumRamDesc(@Param("price") BigDecimal price);
+    Optional<Motherboard> findFirstByPriceLessThanEqualOrderByPriceAsc(@Param("price") BigDecimal price);
 
     @Query(value = "select * " +
             "            from motherboard " +

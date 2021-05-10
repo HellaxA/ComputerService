@@ -11,7 +11,6 @@ import org.springframework.data.rest.core.annotation.RepositoryRestResource;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Optional;
 
 @RepositoryRestResource
 public interface RamEntityRepository extends PagingAndSortingRepository<Ram, BigInteger> {
@@ -31,8 +30,8 @@ public interface RamEntityRepository extends PagingAndSortingRepository<Ram, Big
             "and type = ?2 " +
             "and amount <= ?3 " +
             "and capacity * amount <= ?4 " +
-            "ORDER BY avg_bench desc, " +
-            "freq desc LIMIT 3", nativeQuery = true)
+            "ORDER BY avg_bench desc",
+             nativeQuery = true)
     List<Ram> findTop3RamsProposals(
             @Param("price") BigDecimal price,
             @Param("type") String type,

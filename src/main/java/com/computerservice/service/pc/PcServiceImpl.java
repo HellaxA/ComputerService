@@ -229,7 +229,7 @@ public class PcServiceImpl implements PcService {
             Gpu gpu;
             if (ps == null) {
                 gpu = gpuEntityRepository
-                        .findFirstByPriceLessThanEqualOrderByPriceAscAvgBenchDesc(gpuMaxPrice)
+                        .findFirstByPriceLessThanEqualOrderByPriceAsc(gpuMaxPrice)
                         .orElseThrow(GpuNotFoundException::new);
             } else {
                 int cpuTdp = cpu.getTdp();
@@ -272,7 +272,7 @@ public class PcServiceImpl implements PcService {
         if (mb == null) {
             if (cpu == null && ram == null && gpus == null && ps == null) {
                 mb = motherboardEntityRepository
-                        .findFirstByPriceLessThanEqualOrderByPriceAscM2AscMaxRamDescNumRamDesc(mbMaxPrice)
+                        .findFirstByPriceLessThanEqualOrderByPriceAsc(mbMaxPrice)
                         .orElseThrow(MotherboardNotFoundException::new);
             } else {
                 String socket = "%";
