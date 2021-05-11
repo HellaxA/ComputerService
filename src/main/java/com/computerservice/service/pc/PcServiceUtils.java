@@ -16,4 +16,12 @@ public class PcServiceUtils {
         }
         return areGpusValid;
     }
+
+    public static void setOkToAllKeys(Map<String, String> gpuResponse) {
+        for (Map.Entry<String, String> pair : gpuResponse.entrySet()) {
+            if (!pair.getValue().equals("Ok")) {
+                pair.setValue("Ok");
+            }
+        }
+    }
 }
