@@ -6,8 +6,10 @@ import com.computerservice.entity.pc.motherboard.Motherboard;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 import javax.persistence.*;
 import java.util.List;
@@ -16,6 +18,8 @@ import java.util.List;
 @Entity
 @Data
 @Table(name = "pc")
+@NoArgsConstructor
+@AllArgsConstructor
 public class Pc extends PcComponent {
 
     @ManyToOne

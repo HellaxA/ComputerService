@@ -6,7 +6,6 @@ import com.computerservice.entity.pc.pc.*;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
-import com.computerservice.exception.PcComponentNotFoundException;
 import com.computerservice.exception.gpu.GpuNotFoundException;
 import com.computerservice.exception.motherboard.MotherboardNotFoundException;
 import com.computerservice.exception.powersupply.PowerSupplyNotFoundException;
@@ -22,15 +21,12 @@ import com.computerservice.service.processor.ProcessorCompatibilityCheckService;
 import com.computerservice.service.ram.RamCompatibilityCheckService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.*;
 
 import static com.computerservice.service.powersupply.PowerSupplyCompatibilityCheckServiceImpl.APPROXIMATE_ADDITIONAL_TDP;
 
@@ -50,6 +46,20 @@ public class PcServiceImpl implements PcService {
     private final RamCompatibilityCheckService ramCompatibilityCheckService;
 
     @Override
+    public PcCompatibilityCheckResponseDto checkPcCompatibility(Pc pc) {
+        Optional<PowerSupply> powerSupply = Optional.ofNullable(pc.getPowerSupply());
+        Optional<Motherboard> motherboard = Optional.ofNullable(pc.getMotherboard());
+        Optional<Ram> ram = Optional.ofNullable(pc.getRam());
+        Optional<Processor> processor = Optional.ofNullable(pc.getProcessor());
+        Optional<List<Gpu>> gpus = Optional.ofNullable(pc.getGpus());
+
+        PcCompatibilityCheckResponseDto pcCheck = checkPcEntityCompatibility(powerSupply, motherboard, ram, processor, gpus);
+        logPcCheckResponseDto(pcCheck);
+
+        return pcCheck;
+    }
+
+    @Override
     public PcCompatibilityCheckResponseDto checkPcCompatibility(PcRequestDto pcRequestDto) {
         BigInteger powerSupplyId = pcRequestDto.getPowerSupplyId();
         BigInteger motherboardId = pcRequestDto.getMotherboardId();
@@ -57,48 +67,68 @@ public class PcServiceImpl implements PcService {
         BigInteger processorId = pcRequestDto.getProcessorId();
         List<BigInteger> gpuIds = pcRequestDto.getGpuIds();
 
-        PowerSupply powerSupply = powerSupplyEntityRepository
-                .findById(powerSupplyId)
-                .orElseThrow(PowerSupplyNotFoundException::new);
-        Motherboard motherboard = motherboardEntityRepository
-                .findById(motherboardId)
-                .orElseThrow(MotherboardNotFoundException::new);
-        Ram ram = ramEntityRepository
-                .findById(ramId)
-                .orElseThrow(RamNotFoundException::new);
-        Processor processor = processorEntityRepository
-                .findById(processorId)
-                .orElseThrow(ProcessorNotFoundException::new);
+        Optional<PowerSupply> powerSupply = powerSupplyId == null ?
+                Optional.empty() : powerSupplyEntityRepository.findById(powerSupplyId);
+        Optional<Motherboard> motherboard = motherboardId == null ?
+                Optional.empty() : motherboardEntityRepository.findById(motherboardId);
+        Optional<Ram> ram = ramId == null ?
+                Optional.empty() : ramEntityRepository.findById(ramId);
+        Optional<Processor> processor = processorId == null ?
+                Optional.empty() : processorEntityRepository.findById(processorId);
+        Optional<List<Gpu>> gpus = gpuIds == null ?
+                Optional.empty() : findAllGpusByIds(gpuIds);
 
-        List<Gpu> gpus = findAllGpusByIds(gpuIds);
 
-        boolean isPowerSupplyCompatibleWithMotherboardPower = powerSupplyCompatibilityCheckService
-                .checkCompatibilityWithMotherboardPower(powerSupply, motherboard);
+        PcCompatibilityCheckResponseDto pcCheck = checkPcEntityCompatibility(powerSupply, motherboard, ram, processor, gpus);
+        logPcCheckResponseDto(pcCheck);
 
-        boolean isPowerSupplyCompatibleWithMotherboardCpuPower = powerSupplyCompatibilityCheckService
-                .checkCompatibilityWithMotherboardCpuPower(powerSupply, motherboard);
+        return pcCheck;
+    }
 
-        boolean isProcessorCompatibleWithMotherboardSocket = processorCompatibilityCheckService
-                .checkCompatibilityWithMotherboardSocket(processor, motherboard);
+    private PcCompatibilityCheckResponseDto checkPcEntityCompatibility(Optional<PowerSupply> powerSupply, Optional<Motherboard> motherboard, Optional<Ram> ram, Optional<Processor> processor, Optional<List<Gpu>> gpus) {
+        boolean isPowerSupplyCompatibleWithMotherboardPower = true;
+        boolean isPowerSupplyCompatibleWithMotherboardCpuPower = true;
 
-        boolean isRamTypeCompatibleWithMotherboard = ramCompatibilityCheckService
-                .checkRamTypeCompatibilityWithMotherboard(ram, motherboard);
+        if (powerSupply.isPresent() && motherboard.isPresent()) {
+            isPowerSupplyCompatibleWithMotherboardPower = powerSupplyCompatibilityCheckService
+                    .checkCompatibilityWithMotherboardPower(powerSupply.get(), motherboard.get());
 
-        boolean isRamAmountCompatibleWithMotherboard = ramCompatibilityCheckService
-                .checkRamAmountCompatibilityWithMotherboard(ram, motherboard);
+            isPowerSupplyCompatibleWithMotherboardCpuPower = powerSupplyCompatibilityCheckService
+                    .checkCompatibilityWithMotherboardCpuPower(powerSupply.get(), motherboard.get());
 
-        boolean isRamGbAmountCompatibleWithMotherboard = ramCompatibilityCheckService
-                .checkRamGbAmountCompatibilityWithMotherboard(ram, motherboard);
-
-        boolean isTdpValid = powerSupplyCompatibilityCheckService.checkTdp(powerSupply, processor, gpus);
-
-        Map<String, String> powerSupplyCompatibilityWithGpuPower = Collections.emptyMap();
-        if (!gpus.isEmpty()) {
-            powerSupplyCompatibilityWithGpuPower = powerSupplyCompatibilityCheckService
-                    .checkCompatibilityWithGpuPower(powerSupply, gpus);
         }
 
-        PcCompatibilityCheckResponseDto pcCheck = new PcCompatibilityCheckResponseDto(
+        boolean isRamTypeCompatibleWithMotherboard = true;
+        boolean isRamAmountCompatibleWithMotherboard = true;
+        boolean isRamGbAmountCompatibleWithMotherboard = true;
+
+        if (ram.isPresent() && motherboard.isPresent()) {
+            isRamTypeCompatibleWithMotherboard = ramCompatibilityCheckService
+                    .checkRamTypeCompatibilityWithMotherboard(ram.get(), motherboard.get());
+
+            isRamAmountCompatibleWithMotherboard = ramCompatibilityCheckService
+                    .checkRamAmountCompatibilityWithMotherboard(ram.get(), motherboard.get());
+
+            isRamGbAmountCompatibleWithMotherboard = ramCompatibilityCheckService
+                    .checkRamGbAmountCompatibilityWithMotherboard(ram.get(), motherboard.get());
+        }
+
+        boolean isProcessorCompatibleWithMotherboardSocket =
+                processor.isEmpty() || motherboard.isEmpty() ||
+                        processorCompatibilityCheckService
+                                .checkCompatibilityWithMotherboardSocket(processor.get(), motherboard.get());
+
+        boolean isTdpValid = powerSupply.isEmpty() || processor.isEmpty() || gpus.isEmpty() ||
+                powerSupplyCompatibilityCheckService
+                        .checkTdp(powerSupply.get(), processor.get(), gpus.get());
+
+        Map<String, String> powerSupplyCompatibilityWithGpuPower = Collections.emptyMap();
+        if (gpus.isPresent() && powerSupply.isPresent()) {
+            powerSupplyCompatibilityWithGpuPower = powerSupplyCompatibilityCheckService
+                    .checkCompatibilityWithGpuPower(powerSupply.get(), gpus.get());
+        }
+
+        return new PcCompatibilityCheckResponseDto(
                 isPowerSupplyCompatibleWithMotherboardCpuPower,
                 isPowerSupplyCompatibleWithMotherboardPower,
                 isProcessorCompatibleWithMotherboardSocket,
@@ -108,42 +138,45 @@ public class PcServiceImpl implements PcService {
                 isTdpValid,
                 powerSupplyCompatibilityWithGpuPower
         );
-        logPcCheckResponseDto(pcCheck);
-
-        return pcCheck;
     }
 
-    private List<Gpu> findAllGpusByIds(List<BigInteger> gpuIds) {
+    private Optional<List<Gpu>> findAllGpusByIds(List<BigInteger> gpuIds) {
         List<Gpu> gpus = new ArrayList<>();
         for (BigInteger gpuId : gpuIds) {
             gpus.add(gpuEntityRepository.findById(gpuId).orElseThrow(GpuNotFoundException::new));
         }
-        return gpus;
+        return gpus.isEmpty() ? Optional.empty() : Optional.of(gpus);
     }
 
     @Override
     public PcCompListDto fixComputerAssembly(PcReqAndResDto pcReqAndResDto) {
-        PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto =
+        PcCompatibilityCheckResponseDto pcCompCheckResponseDto =
                 pcReqAndResDto.getPcCompatibilityCheckResponseDto();
         Pc pc = pcReqAndResDto.getPc();
 
-        Processor pcu = pc.getProcessor();
+        Processor cpu = pc.getProcessor();
         Motherboard mb = pc.getMotherboard();
         Ram ram = pc.getRam();
         PowerSupply ps = pc.getPowerSupply();
         List<Gpu> gpus = pc.getGpus();
 
-        PcCompListDto pcCompListDto = new PcCompListDto();
+        PcCompListDto initPcCompListDto = new PcCompListDto();
 
-        motherboardAndCpuSocketFix(pcCompatibilityCheckResponseDto, pcu, mb, pcCompListDto);
-        motherboardAndRamFix(pcCompatibilityCheckResponseDto, mb, ram, pcCompListDto);
-        powerSupplyFix(pcCompatibilityCheckResponseDto, pcu, mb, gpus, pcCompListDto);
+        motherboardAndCpuSocketFix(pcCompCheckResponseDto, mb, cpu, initPcCompListDto);
+        motherboardAndRamFix(pcCompCheckResponseDto, mb, ram, initPcCompListDto);
 
-        pcCompListDto.setPcCompatibilityCheckResponseDto(pcCompatibilityCheckResponseDto);
+        if (cpu == null && gpus == null) powerSupplyAndMotherboardFix(pcCompCheckResponseDto, mb, initPcCompListDto);
+        else if (cpu == null && mb == null) powerSupplyAndGpusFix(pcCompCheckResponseDto, gpus, initPcCompListDto);
+        else if (mb == null && gpus == null) powerSupplyAndCpuFix(pcCompCheckResponseDto, cpu, initPcCompListDto);
+        else if (cpu == null) powerSupplyAndMbAndGpusFix(pcCompCheckResponseDto, mb, gpus, initPcCompListDto);
+        else if (mb == null) powerSupplyAndCpuAndGpusFix(pcCompCheckResponseDto, cpu, gpus, initPcCompListDto);
+        else if (gpus == null) powerSupplyAndCpuAndMbFix(pcCompCheckResponseDto, cpu, mb, initPcCompListDto);
+        else powerSupplyFix(pcCompCheckResponseDto, cpu, mb, gpus, initPcCompListDto);
 
-        printAnswer(pcCompListDto, gpus, ps, ram, pcu, mb);
+        initPcCompListDto.setPcCompatibilityCheckResponseDto(pcCompCheckResponseDto);
+        printAnswer(initPcCompListDto, gpus, ps, ram, cpu, mb);
 
-        return pcCompListDto;
+        return initPcCompListDto;
     }
 
     @Override
@@ -177,7 +210,6 @@ public class PcServiceImpl implements PcService {
 
         if (cpuId != null) {
             cpu = processorEntityRepository.findById(cpuId).orElseThrow(ProcessorNotFoundException::new);
-
         } else {
             processorMaxPrice = maxPrices.getProcessorMaxPrice();
         }
@@ -187,59 +219,64 @@ public class PcServiceImpl implements PcService {
         } else {
             ramMaxPrice = maxPrices.getRamMaxPrice();
         }
-
         if (psId != null) {
             ps = powerSupplyEntityRepository.findById(psId).orElseThrow(PowerSupplyNotFoundException::new);
-
         } else {
             powerSupplyMaxPrice = maxPrices.getPowerSupplyMaxPrice();
         }
 
         if (gpuIds != null && !gpuIds.isEmpty()) {
-            gpus = findAllGpusByIds(gpuIds);
-
+            gpus = findAllGpusByIds(gpuIds).orElse(Collections.emptyList());
         } else {
             gpuMaxPrice = maxPrices.getGpuMaxPrice();
         }
 
+        Pc initPc = new Pc(ps, mb, gpus, cpu, ram);
+        PcCompatibilityCheckResponseDto initPcCompCheck = checkPcCompatibility(initPc);
+
+        boolean isCompatible = initPcCompCheck.isRamTypeCompatibleWithMotherboard() &&
+                initPcCompCheck.isRamAmountCompatibleWithMotherboard() &&
+                initPcCompCheck.isRamGbAmountCompatibleWithMotherboard() &&
+                initPcCompCheck.isProcessorCompatibleWithMotherboardSocket() &&
+                initPcCompCheck.isTdpValid() &&
+                initPcCompCheck.isPowerSupplyCompatibleWithMotherboardPower() &&
+                initPcCompCheck.isPowerSupplyCompatibleWithMotherboardCpuPower() &&
+                PcServiceUtils.areGpusValid(initPcCompCheck.getPowerSupplyCompatibilityWithGpuPower());
+
+        if (!isCompatible) {
+            PcCompListDto pcCompListDto = new PcCompListDto();
+
+            pcCompListDto.setGpus(gpus);
+            if (ps != null) pcCompListDto.setPowerSupplies(List.of(ps));
+            if (mb != null) pcCompListDto.setMotherboards(List.of(mb));
+            if (cpu != null) pcCompListDto.setProcessors(List.of(cpu));
+            if (ram != null) pcCompListDto.setRams(List.of(ram));
+            pcCompListDto.setPcCompatibilityCheckResponseDto(initPcCompCheck);
+
+            return pcCompListDto;
+        }
+
+        // motherboard proposals
         mb = getMotherboardProposal(mbMaxPrice, mb, cpu, ram, ps, gpus);
-        if (cpu == null) {
-            cpu = getProcessorProposal(processorMaxPrice, mb);
-        }
 
-        if (gpus == null) {
-            gpus = getGpusProposal(gpuMaxPrice, cpu, ps);
-        }
+        // cpus proposals
+        if (cpu == null) cpu = getProcessorProposal(processorMaxPrice, mb);
 
-        if (ps == null) {
-            ps = getPowerSupplyProposal(powerSupplyMaxPrice, mb, cpu, gpus);
-        }
+        // gpus proposals
+        if (gpus == null) gpus = getGpusProposal(gpuMaxPrice, cpu, ps);
+
+        // power supplies proposals
+        if (ps == null) ps = getPowerSupplyProposal(powerSupplyMaxPrice, mb, cpu, gpus);
+
+        // rams proposals
         List<Ram> rams = ram == null ? getRamProposal(ramMaxPrice, mb) : List.of(ram);
 
 
-        PcRequestDto proposedPc = new PcRequestDto();
-        proposedPc.setPowerSupplyId(ps.getId());
-        proposedPc.setMotherboardId(mb.getId());
-        proposedPc.setProcessorId(cpu.getId());
-        proposedPc.setRamId(rams.get(0).getId());
-        proposedPc.setGpuIds(gpus.stream().map(Gpu::getId).collect(Collectors.toList()));
-        PcCompatibilityCheckResponseDto pcCompCheck = checkPcCompatibility(proposedPc);
+        // compatibility check
+        Pc finalPc = new Pc(ps, mb, gpus, cpu, rams.get(0));
+        PcCompatibilityCheckResponseDto pcCompCheck = checkPcCompatibility(finalPc);
 
-        //TODO Create new method not to SELECT all the modules again
-        boolean isCompatible = pcCompCheck.isRamTypeCompatibleWithMotherboard() &&
-                pcCompCheck.isRamAmountCompatibleWithMotherboard() &&
-                pcCompCheck.isRamGbAmountCompatibleWithMotherboard() &&
-                pcCompCheck.isProcessorCompatibleWithMotherboardSocket() &&
-                pcCompCheck.isTdpValid() &&
-                pcCompCheck.isPowerSupplyCompatibleWithMotherboardPower() &&
-                pcCompCheck.isPowerSupplyCompatibleWithMotherboardCpuPower() &&
-                PcServiceUtils.areGpusValid(pcCompCheck.getPowerSupplyCompatibilityWithGpuPower());
-
-        if (isCompatible) {
-            return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
-        }
-
-        throw new PcComponentNotFoundException();
+        return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
     }
 
     private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, List<Gpu> gpus) {
@@ -252,7 +289,6 @@ public class PcServiceImpl implements PcService {
     }
 
     private List<Gpu> getGpusProposal(BigDecimal gpuMaxPrice, Processor cpu, PowerSupply ps) {
-
         List<Gpu> gpus = new ArrayList<>();
         Gpu gpu;
         if (ps == null) {
@@ -328,68 +364,228 @@ public class PcServiceImpl implements PcService {
         }
         return mb;
     }
+    private void powerSupplyAndMotherboardFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                              Motherboard mb, PcCompListDto initPcCompListDto) {
+        if (mb != null) {
+            if (!pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardCpuPower() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower()
+            ) {
+                List<PowerSupply> powerSupplies = powerSupplyEntityRepository
+                        .findCompatiblePowerSupplyWithMotherboard(mb.getPowerPin(), mb.getProcessorPowerPin());
+
+                if (!powerSupplies.isEmpty()) {
+                    initPcCompListDto.setPowerSupplies(powerSupplies);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
+    private void powerSupplyAndCpuFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                      Processor cpu, PcCompListDto pcCompListDto) {
+        if (cpu != null) {
+            if (!pcCompatibilityCheckResponseDto.isTdpValid()) {
+                List<PowerSupply> powerSupplies = powerSupplyEntityRepository.findTop5ByPowerIsGreaterThanEqualOrderByPowerDesc(cpu.getTdp());
+                if (!powerSupplies.isEmpty()) {
+                    pcCompListDto.setPowerSupplies(powerSupplies);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
+    private void powerSupplyAndGpusFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                       List<Gpu> gpus, PcCompListDto pcCompListDto) {
+        if (gpus != null) {
+            Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
+            boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
+
+            if (!areGpusValid) {
+                List<PowerSupply> powerSupplies = getCompatiblePowerSuppliesWithGpus(gpus);
+                if (!powerSupplies.isEmpty()) {
+                    pcCompListDto.setPowerSupplies(powerSupplies);
+                    PcServiceUtils.setOkToAllKeys(gpuResponse);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
+    private void powerSupplyAndMbAndGpusFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                            Motherboard mb, List<Gpu> gpus, PcCompListDto pcCompListDto) {
+        if (mb != null && gpus != null) {
+            Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
+            boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
+
+            if (!pcCompatibilityCheckResponseDto.isTdpValid() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardCpuPower() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower() ||
+                    !areGpusValid
+            ) {
+                List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(null, mb, gpus, MAX_PRICE);
+                if (!powerSupplies.isEmpty()) {
+                    pcCompListDto.setPowerSupplies(powerSupplies);
+                    PcServiceUtils.setOkToAllKeys(gpuResponse);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
+
+    private void powerSupplyAndCpuAndGpusFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                             Processor cpu, List<Gpu> gpus, PcCompListDto pcCompListDto) {
+        if (cpu != null && gpus != null) {
+            Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
+            boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
+
+            if (!pcCompatibilityCheckResponseDto.isTdpValid() || !areGpusValid
+            ) {
+                List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, null, gpus, MAX_PRICE);
+                if (!powerSupplies.isEmpty()) {
+                    pcCompListDto.setPowerSupplies(powerSupplies);
+                    PcServiceUtils.setOkToAllKeys(gpuResponse);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
+
+    private void powerSupplyAndCpuAndMbFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
+                                           Processor cpu, Motherboard mb, PcCompListDto pcCompListDto) {
+        if (cpu != null && mb != null) {
+            if (!pcCompatibilityCheckResponseDto.isTdpValid() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardCpuPower() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower()
+            ) {
+                List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, null, MAX_PRICE);
+                if (!powerSupplies.isEmpty()) {
+                    pcCompListDto.setPowerSupplies(powerSupplies);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
+
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
+        }
+    }
+
 
     private void powerSupplyFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
-                                Processor pcu, Motherboard mb, List<Gpu> gpus,
+                                Processor cpu, Motherboard mb, List<Gpu> gpus,
                                 PcCompListDto pcCompListDto) {
+        if (cpu != null && mb != null && gpus != null) {
+            Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
+            boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
 
-        Map<String, String> gpuResponse = pcCompatibilityCheckResponseDto.getPowerSupplyCompatibilityWithGpuPower();
-        boolean areGpusValid = PcServiceUtils.areGpusValid(gpuResponse);
-
-        if (!pcCompatibilityCheckResponseDto.isTdpValid() ||
-                !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardCpuPower() ||
-                !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower() ||
-                !areGpusValid
-        ) {
-
-            List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(pcu, mb, gpus, MAX_PRICE);
-
-            if (!powerSupplies.isEmpty()) {
-                for (Map.Entry<String, String> pair : gpuResponse.entrySet()) {
-                    if (!pair.getValue().equals("Ok")) {
-                        pair.setValue("Ok");
-                    }
-                }
-                pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
-                pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
-                pcCompatibilityCheckResponseDto.setTdpValid(true);
+            if (!pcCompatibilityCheckResponseDto.isTdpValid() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardCpuPower() ||
+                    !pcCompatibilityCheckResponseDto.isPowerSupplyCompatibleWithMotherboardPower() ||
+                    !areGpusValid
+            ) {
+                List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus, MAX_PRICE);
+                if (!powerSupplies.isEmpty()) {
                 pcCompListDto.setPowerSupplies(powerSupplies);
-            }
+                    PcServiceUtils.setOkToAllKeys(gpuResponse);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+                    pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+                    pcCompatibilityCheckResponseDto.setTdpValid(true);
+                }
 
+            }
+        } else {
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
+            pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
+            pcCompatibilityCheckResponseDto.setTdpValid(true);
         }
     }
 
     private void motherboardAndRamFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto, Motherboard mb, Ram ram, PcCompListDto pcCompListDto) {
-        if (!pcCompatibilityCheckResponseDto.isRamAmountCompatibleWithMotherboard() ||
-                !pcCompatibilityCheckResponseDto.isRamGbAmountCompatibleWithMotherboard() ||
-                !pcCompatibilityCheckResponseDto.isRamTypeCompatibleWithMotherboard()
-        ) {
-            List<Ram> rams = getCompatibleRams(mb, ram);
-            if (!rams.isEmpty()) {
-                pcCompListDto.setRams(rams);
+        if (mb != null && ram != null) {
+            if (!pcCompatibilityCheckResponseDto.isRamAmountCompatibleWithMotherboard() ||
+                    !pcCompatibilityCheckResponseDto.isRamGbAmountCompatibleWithMotherboard() ||
+                    !pcCompatibilityCheckResponseDto.isRamTypeCompatibleWithMotherboard()
+            ) {
+                List<Ram> rams = getCompatibleRams(mb, ram);
+                if (!rams.isEmpty()) {
+                    pcCompListDto.setRams(rams);
+                    pcCompatibilityCheckResponseDto.setRamAmountCompatibleWithMotherboard(true);
+                    pcCompatibilityCheckResponseDto.setRamGbAmountCompatibleWithMotherboard(true);
+                    pcCompatibilityCheckResponseDto.setRamTypeCompatibleWithMotherboard(true);
+                }
+            } else {
                 pcCompatibilityCheckResponseDto.setRamAmountCompatibleWithMotherboard(true);
                 pcCompatibilityCheckResponseDto.setRamGbAmountCompatibleWithMotherboard(true);
                 pcCompatibilityCheckResponseDto.setRamTypeCompatibleWithMotherboard(true);
             }
-
         }
     }
 
-    private void motherboardAndCpuSocketFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto, Processor pcu, Motherboard mb, PcCompListDto pcCompListDto) {
-        if (!pcCompatibilityCheckResponseDto.isProcessorCompatibleWithMotherboardSocket()) {
-            List<Processor> processors = getCompatibleProcessors(pcu, mb);
-            if (!processors.isEmpty()) {
-                pcCompListDto.setProcessors(processors);
-                pcCompatibilityCheckResponseDto.setProcessorCompatibleWithMotherboardSocket(true);
+
+    private void motherboardAndCpuSocketFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto, Motherboard mb, Processor cpu, PcCompListDto pcCompListDto) {
+        if (mb != null && cpu != null) {
+            if (!pcCompatibilityCheckResponseDto.isProcessorCompatibleWithMotherboardSocket()) {
+                List<Processor> processors = getCompatibleProcessors(cpu, mb);
+                if (!processors.isEmpty()) {
+                    pcCompListDto.setProcessors(processors);
+                    pcCompatibilityCheckResponseDto.setProcessorCompatibleWithMotherboardSocket(true);
+                }
             }
+        } else {
+            pcCompatibilityCheckResponseDto.setProcessorCompatibleWithMotherboardSocket(true);
         }
+
     }
 
-    private List<PowerSupply> getCompatiblePowerSupplies(Processor pcu, Motherboard mb, List<Gpu> gpus, BigDecimal maxPrice) {
-        int cpuTdp = pcu.getTdp();
+
+    private List<PowerSupply> getCompatiblePowerSuppliesWithGpus(List<Gpu> gpus) {
+        int gpuTdp = gpus != null ? gpus.stream().mapToInt(Gpu::getTdp).sum() : 0;
+        int tdp = gpuTdp + APPROXIMATE_ADDITIONAL_TDP;
+
+        String gpuAddPowerPin1 = gpus != null && gpus.size() == 1 ? gpus.get(0).getAddPower() : "%";
+        String gpuAddPowerPin2 = gpus != null && gpus.size() == 2 ? gpus.get(1).getAddPower() : "%";
+
+        return powerSupplyEntityRepository.findCompatiblePowerSupplyWithGpus(
+                gpuAddPowerPin1,
+                gpuAddPowerPin2,
+                tdp
+        );
+    }
+
+    private List<PowerSupply> getCompatiblePowerSupplies(@Nullable Processor pcu, @Nullable Motherboard mb, List<Gpu> gpus, BigDecimal maxPrice) {
+        int cpuTdp = pcu != null ? pcu.getTdp() : 0;
 
         int gpuTdp = gpus != null ? gpus.stream().mapToInt(Gpu::getTdp).sum() : 0;
         int tdp = cpuTdp + gpuTdp + APPROXIMATE_ADDITIONAL_TDP;
+
+        String mbPowerPin = mb != null ? mb.getPowerPin() : "%";
+        String mbCpuPowerPin = mb != null ? mb.getProcessorPowerPin() : "%";
 
         String gpuAddPowerPin1 = gpus != null && gpus.size() == 1 ? gpus.get(0).getAddPower() : "%";
         String gpuAddPowerPin2 = gpus != null && gpus.size() == 2 ? gpus.get(1).getAddPower() : "%";
@@ -397,8 +593,8 @@ public class PcServiceImpl implements PcService {
         return powerSupplyEntityRepository.findCompatiblePowerSupply(
                 gpuAddPowerPin1,
                 gpuAddPowerPin2,
-                mb.getPowerPin(),
-                mb.getProcessorPowerPin(),
+                mbPowerPin,
+                mbCpuPowerPin,
                 tdp,
                 maxPrice
         );
@@ -431,37 +627,36 @@ public class PcServiceImpl implements PcService {
                 "\nprocessors: " + pcCompListDto.getProcessors() +
                 "\nrams: " + pcCompListDto.getRams()
         );
-        PcRequestDto pcRequestDto = new PcRequestDto();
 
-        if (pcCompListDto.getRams() == null) {
-            pcRequestDto.setRamId(ram.getId());
-        } else {
-            pcRequestDto.setRamId(pcCompListDto.getRams().get(0).getId());
+        Pc pc = new Pc();
+
+        if (pcCompListDto.getRams() == null && ram != null) {
+            pc.setRam(ram);
+        } else if (pcCompListDto.getRams() != null && !pcCompListDto.getRams().isEmpty()) {
+            pc.setRam(pcCompListDto.getRams().get(0));
         }
 
-        if (pcCompListDto.getProcessors() == null) {
-            pcRequestDto.setProcessorId(processor.getId());
-        } else {
-            pcRequestDto.setProcessorId(pcCompListDto.getProcessors().get(0).getId());
+        if (pcCompListDto.getProcessors() == null && processor != null) {
+            pc.setProcessor(processor);
+        } else if (pcCompListDto.getProcessors() != null && !pcCompListDto.getProcessors().isEmpty()) {
+            pc.setProcessor(pcCompListDto.getProcessors().get(0));
         }
 
-        if (pcCompListDto.getPowerSupplies() == null) {
-            pcRequestDto.setPowerSupplyId(ps.getId());
-        } else {
-            pcRequestDto.setPowerSupplyId(pcCompListDto.getPowerSupplies().get(0).getId());
+        if (pcCompListDto.getPowerSupplies() == null && ps != null) {
+            pc.setPowerSupply(ps);
+        } else if (pcCompListDto.getPowerSupplies() != null && !pcCompListDto.getPowerSupplies().isEmpty()) {
+            pc.setPowerSupply(pcCompListDto.getPowerSupplies().get(0));
         }
 
-        pcRequestDto.setMotherboardId(motherboard.getId());
+        if (motherboard != null) {
+            pc.setMotherboard(motherboard);
+        }
 
-        List<BigInteger> gpuIds = new ArrayList<>();
         if (gpus != null) {
-            for (Gpu gpu : gpus) {
-                gpuIds.add(gpu.getId());
-            }
+            pc.setGpus(gpus);
         }
-        pcRequestDto.setGpuIds(gpuIds);
 
-        checkPcCompatibility(pcRequestDto);
+        checkPcCompatibility(pc);
     }
 
     public void logPcCheckResponseDto(PcCompatibilityCheckResponseDto pcCheck) {

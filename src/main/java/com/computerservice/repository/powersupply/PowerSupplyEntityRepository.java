@@ -17,6 +17,8 @@ import java.util.List;
 public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<PowerSupply, BigInteger> {
     Page<PowerSupply> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
+    List<PowerSupply> findTop5ByPowerIsGreaterThanEqualOrderByPowerDesc(@Param("tdp") int tdp);
+
     @Query(
             value = "select * " +
                     "from power_supply ps " +
@@ -24,20 +26,20 @@ public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<
                     "    select power_supply_pin " +
                     "    from gpu_interface " +
                     "    where gpu_interface_value LIKE ?1) " +
-                    "and gpu_add_power_pin in (\n" +
-                    "    select power_supply_pin\n" +
-                    "    from gpu_interface\n" +
+                    "and gpu_add_power_pin in ( " +
+                    "    select power_supply_pin " +
+                    "    from gpu_interface " +
                     "    where gpu_interface_value LIKE ?2)" +
                     "  and motherboard_power_pin in ( " +
                     "    select power_supply_pin " +
                     "    from motherboard_interface " +
-                    "    where motherboard_interface_value = ?3) " +
+                    "    where motherboard_interface_value LIKE ?3) " +
                     "  and processor_power_pin in ( " +
                     "    select power_supply_pin " +
                     "    from processor_interface " +
-                    "    where processor_interface_value = ?4) " +
+                    "    where processor_interface_value LIKE ?4) " +
                     "  and power >= ?5 " +
-                    "  and price <= ?6 order by price limit 5 ",
+                    "  and price <= ?6 order by power desc limit 5 ",
             nativeQuery = true)
     List<PowerSupply> findCompatiblePowerSupply(String gpuAddPowerPin1,
                                                 String gpuAddPowerPin2,
@@ -46,4 +48,35 @@ public interface PowerSupplyEntityRepository extends PagingAndSortingRepository<
                                                 int tdp,
                                                 BigDecimal price
     );
+
+    @Query(value = "select * " +
+            "from power_supply ps " +
+            "where motherboard_power_pin in (" +
+            "   select power_supply_pin" +
+            "   from motherboard_interface  " +
+            "   where motherboard_interface_value LIKE ?1)" +
+            "and processor_power_pin in ( " +
+            "   select power_supply_pin " +
+            "   from processor_interface " +
+            "   where processor_interface_value LIKE ?2) " +
+            "order by power desc limit 5 ",
+            nativeQuery = true)
+    List<PowerSupply> findCompatiblePowerSupplyWithMotherboard(String powerPin, String cpuPowerPin);
+
+
+    @Query(
+            value = "select * " +
+                    "from power_supply ps " +
+                    "where gpu_add_power_pin in ( " +
+                    "    select power_supply_pin " +
+                    "    from gpu_interface " +
+                    "    where gpu_interface_value LIKE ?1) " +
+                    "and gpu_add_power_pin in ( " +
+                    "    select power_supply_pin " +
+                    "    from gpu_interface " +
+                    "    where gpu_interface_value LIKE ?2)" +
+                    "and power >= ?3 " +
+                    "order by power desc limit 5 ",
+            nativeQuery = true)
+    List<PowerSupply> findCompatiblePowerSupplyWithGpus(String gpuAddPowerPin1, String gpuAddPowerPin2, int tdp);
 }
