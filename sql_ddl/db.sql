@@ -22,6 +22,13 @@ create unique index user_table_login_uindex
 insert into role_table(name) values ('ROLE_ADMIN');
 insert into role_table(name) values ('ROLE_USER');
 
+create table reset_token
+(
+    id          serial primary key,
+    token       varchar(100),
+    expiry_date timestamp,
+    user_id     integer UNIQUE NOT NULL REFERENCES user_table (id)
+);
 
 DROP TABLE IF EXISTS gpu;
 CREATE TABLE gpu (

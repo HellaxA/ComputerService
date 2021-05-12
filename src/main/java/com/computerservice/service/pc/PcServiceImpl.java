@@ -78,7 +78,6 @@ public class PcServiceImpl implements PcService {
         Optional<List<Gpu>> gpus = gpuIds == null ?
                 Optional.empty() : findAllGpusByIds(gpuIds);
 
-
         PcCompatibilityCheckResponseDto pcCheck = checkPcEntityCompatibility(powerSupply, motherboard, ram, processor, gpus);
         logPcCheckResponseDto(pcCheck);
 
@@ -122,10 +121,14 @@ public class PcServiceImpl implements PcService {
                 powerSupplyCompatibilityCheckService
                         .checkTdp(powerSupply.get(), processor.get(), gpus.get());
 
-        Map<String, String> powerSupplyCompatibilityWithGpuPower = Collections.emptyMap();
+        Map<String, String> powerSupplyCompatibilityWithGpuPower = new HashMap<>();
         if (gpus.isPresent() && powerSupply.isPresent()) {
             powerSupplyCompatibilityWithGpuPower = powerSupplyCompatibilityCheckService
                     .checkCompatibilityWithGpuPower(powerSupply.get(), gpus.get());
+        } else if (gpus.isPresent()){
+            for (Gpu tempGpu: gpus.get()) {
+                powerSupplyCompatibilityWithGpuPower.put(tempGpu.getName(), "Ok");
+            }
         }
 
         return new PcCompatibilityCheckResponseDto(
