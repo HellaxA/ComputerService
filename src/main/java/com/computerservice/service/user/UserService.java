@@ -1,47 +1,21 @@
 package com.computerservice.service.user;
 
-import com.computerservice.entity.role.RoleEntity;
+import com.computerservice.entity.resettoken.ResetToken;
+import com.computerservice.entity.user.PasswordDTO;
 import com.computerservice.entity.user.UserEntity;
-import com.computerservice.exception.user.UserNotFoundException;
-import com.computerservice.repository.role.RoleEntityRepository;
-import com.computerservice.repository.user.UserEntityRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 
-@Service
-@RequiredArgsConstructor
-@Log
-public class UserService {
-    private final UserEntityRepository userEntityRepository;
-    private final RoleEntityRepository roleEntityRepository;
-    private final PasswordEncoder passwordEncoder;
+public interface UserService {
+    UserEntity saveUser(UserEntity userEntity);
+    UserEntity findByLogin(String login);
+    UserEntity findByLoginAndPassword(String login, String password);
 
-    @Value("$(password.salt)")
-    private String passwordSalt;
+    void createPasswordResetTokenForUser(UserEntity user, String token);
 
-    public UserEntity saveUser(UserEntity userEntity) {
-        RoleEntity userRole = roleEntityRepository.findByName("ROLE_USER");
-        userEntity.setRoleEntity(userRole);
-        userEntity.setPassword(passwordEncoder.encode(userEntity.getPassword() + passwordSalt));
-        log.info("User was saved in the system.");
-        return userEntityRepository.save(userEntity);
-    }
+    boolean validatePassword(PasswordDTO passwordDTO);
 
-    public UserEntity findByLogin(String login) {
-        return userEntityRepository.findByLogin(login);
-    }
+    ResetToken findByToken(String token);
 
-    public UserEntity findByLoginAndPassword(String login, String password) {
-        password += passwordSalt;
-        UserEntity userEntity = findByLogin(login);
-        if (userEntity != null && passwordEncoder.matches(password, userEntity.getPassword())) {
-            log.info("User exists in the system.");
-            return userEntity;
-        }
-        log.info("User doesn't exist in the system.");
-        throw new UserNotFoundException();
-    }
+    void changeUserPassword(ResetToken resetToken, String password);
+
+    void makeTokenExpired(ResetToken resetToken);
 }
