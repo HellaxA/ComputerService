@@ -6,6 +6,7 @@ import com.computerservice.entity.pc.pc.*;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
+import com.computerservice.entity.user.UserEntity;
 import com.computerservice.exception.gpu.GpuNotFoundException;
 import com.computerservice.exception.motherboard.MotherboardNotFoundException;
 import com.computerservice.exception.powersupply.PowerSupplyNotFoundException;
@@ -13,16 +14,21 @@ import com.computerservice.exception.processor.ProcessorNotFoundException;
 import com.computerservice.exception.ram.RamNotFoundException;
 import com.computerservice.repository.gpu.GpuEntityRepository;
 import com.computerservice.repository.motherboard.MotherboardEntityRepository;
+import com.computerservice.repository.pc.PcEntityRepository;
 import com.computerservice.repository.powersupply.PowerSupplyEntityRepository;
 import com.computerservice.repository.processor.ProcessorEntityRepository;
 import com.computerservice.repository.ram.RamEntityRepository;
 import com.computerservice.service.powersupply.PowerSupplyCompatibilityCheckService;
 import com.computerservice.service.processor.ProcessorCompatibilityCheckService;
 import com.computerservice.service.ram.RamCompatibilityCheckService;
+import com.computerservice.service.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.java.Log;
 import org.springframework.lang.Nullable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -37,6 +43,7 @@ public class PcServiceImpl implements PcService {
 
     public static final BigDecimal MAX_PRICE = new BigDecimal(100000);
     private final PowerSupplyEntityRepository powerSupplyEntityRepository;
+    private final UserService userService;
     private final MotherboardEntityRepository motherboardEntityRepository;
     private final GpuEntityRepository gpuEntityRepository;
     private final RamEntityRepository ramEntityRepository;
@@ -44,6 +51,7 @@ public class PcServiceImpl implements PcService {
     private final PowerSupplyCompatibilityCheckService powerSupplyCompatibilityCheckService;
     private final ProcessorCompatibilityCheckService processorCompatibilityCheckService;
     private final RamCompatibilityCheckService ramCompatibilityCheckService;
+    private final PcEntityRepository pcEntityRepository;
 
     @Override
     public PcCompatibilityCheckResponseDto checkPcCompatibility(Pc pc) {
@@ -125,8 +133,8 @@ public class PcServiceImpl implements PcService {
         if (gpus.isPresent() && powerSupply.isPresent()) {
             powerSupplyCompatibilityWithGpuPower = powerSupplyCompatibilityCheckService
                     .checkCompatibilityWithGpuPower(powerSupply.get(), gpus.get());
-        } else if (gpus.isPresent()){
-            for (Gpu tempGpu: gpus.get()) {
+        } else if (gpus.isPresent()) {
+            for (Gpu tempGpu : gpus.get()) {
                 powerSupplyCompatibilityWithGpuPower.put(tempGpu.getName(), "Ok");
             }
         }
@@ -282,6 +290,66 @@ public class PcServiceImpl implements PcService {
         return new PcCompListDto(List.of(ps), List.of(mb), gpus, List.of(cpu), rams, pcCompCheck);
     }
 
+    @Override
+    @Transactional
+    public Pc savePc(PcRequestDto pcRequestDto) {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+        UserEntity userEntity = userService.findByLogin(userDetails.getUsername());
+
+        var gpuIds = pcRequestDto.getGpuIds();
+        var mbId = pcRequestDto.getMotherboardId();
+        var psId = pcRequestDto.getPowerSupplyId();
+        var ramId = pcRequestDto.getRamId();
+        var processorId = pcRequestDto.getProcessorId();
+
+        List<Gpu> gpus = gpuIds == null ? null : gpuEntityRepository.findByIdIn(gpuIds);
+        Motherboard mb = mbId == null ? null : motherboardEntityRepository.findById(mbId).orElseThrow(MotherboardNotFoundException::new);
+        PowerSupply powerSupply = psId == null ? null : powerSupplyEntityRepository.findById(psId).orElseThrow(PowerSupplyNotFoundException::new);
+        Ram ram = ramId == null ? null : ramEntityRepository.findById(ramId).orElseThrow(RamNotFoundException::new);
+        Processor cpu = processorId == null ? null : processorEntityRepository.findById(processorId).orElseThrow(ProcessorNotFoundException::new);
+
+        Pc pc = new Pc();
+        pc.setUserEntity(userEntity);
+        pc.setProcessor(cpu);
+        pc.setRam(ram);
+        pc.setPowerSupply(powerSupply);
+        pc.setMotherboard(mb);
+        pc.setGpus(gpus);
+        BigDecimal price = PcServiceUtils.getPcPrice(pc);
+        pc.setPrice(price);
+        pc.setName(pcRequestDto.getName());
+        pcEntityRepository.save(pc);
+        return pc;
+    }
+
+    @Override
+    public List<Pc> findAllPaginated(int page, int size) {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+
+        int offset = PcServiceUtils.getOffset(page, size);
+        return pcEntityRepository.findAllPaginated(offset, size, userDetails.getUsername());
+    }
+
+    @Override
+    public int countAllPcsOfUser() {
+        UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().getAuthentication()
+                .getPrincipal();
+
+        UserEntity userEntity = userService.findByLogin(userDetails.getUsername());
+
+        return pcEntityRepository.countAllPcsOfUser(userEntity.getId());
+    }
+
+    @Override
+    @Transactional
+    public void removePc(BigInteger id) {
+        pcEntityRepository.removeGpusFromPc(id);
+        pcEntityRepository.removePc(id);
+        log.info("PC assembly with id=" + id + " was deleted.");
+    }
+
     private PowerSupply getPowerSupplyProposal(BigDecimal powerSupplyMaxPrice, Motherboard mb, Processor cpu, List<Gpu> gpus) {
         List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus, powerSupplyMaxPrice);
         if (!powerSupplies.isEmpty()) {
@@ -367,6 +435,7 @@ public class PcServiceImpl implements PcService {
         }
         return mb;
     }
+
     private void powerSupplyAndMotherboardFix(PcCompatibilityCheckResponseDto pcCompatibilityCheckResponseDto,
                                               Motherboard mb, PcCompListDto initPcCompListDto) {
         if (mb != null) {
@@ -514,7 +583,7 @@ public class PcServiceImpl implements PcService {
             ) {
                 List<PowerSupply> powerSupplies = getCompatiblePowerSupplies(cpu, mb, gpus, MAX_PRICE);
                 if (!powerSupplies.isEmpty()) {
-                pcCompListDto.setPowerSupplies(powerSupplies);
+                    pcCompListDto.setPowerSupplies(powerSupplies);
                     PcServiceUtils.setOkToAllKeys(gpuResponse);
                     pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardCpuPower(true);
                     pcCompatibilityCheckResponseDto.setPowerSupplyCompatibleWithMotherboardPower(true);
