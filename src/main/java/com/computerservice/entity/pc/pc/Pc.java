@@ -6,6 +6,8 @@ import com.computerservice.entity.pc.motherboard.Motherboard;
 import com.computerservice.entity.pc.powersupply.PowerSupply;
 import com.computerservice.entity.pc.processor.Processor;
 import com.computerservice.entity.pc.ram.Ram;
+import com.computerservice.entity.user.UserEntity;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -50,4 +52,16 @@ public class Pc extends PcComponent {
     @JoinColumn(name = "ram_id")
     private Ram ram;
 
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JsonBackReference
+    @JoinColumn(name = "user_id")
+    private UserEntity userEntity;
+
+    public Pc(PowerSupply powerSupply, Motherboard motherboard, List<Gpu> gpus, Processor processor, Ram ram) {
+        this.powerSupply = powerSupply;
+        this.motherboard = motherboard;
+        this.gpus = gpus;
+        this.processor = processor;
+        this.ram = ram;
+    }
 }

@@ -1,34 +1,3 @@
-create table role_table
-(
-    id   serial      not null
-        constraint role_table_pk
-            primary key,
-    name varchar(20) not null
-);
-
-create table user_table
-(
-    id       serial not null
-        constraint user_table_pk
-            primary key,
-    login    varchar(50),
-    password varchar(500),
-    role_id  integer
-        constraint user_table_role_table_id_fk
-            references role_table(id)
-);
-create unique index user_table_login_uindex
-    on user_table (login);
-insert into role_table(name) values ('ROLE_ADMIN');
-insert into role_table(name) values ('ROLE_USER');
-
-create table reset_token
-(
-    id          serial primary key,
-    token       varchar(100),
-    expiry_date timestamp,
-    user_id     integer UNIQUE NOT NULL REFERENCES user_table (id)
-);
 
 DROP TABLE IF EXISTS gpu;
 CREATE TABLE gpu (
@@ -178,12 +147,12 @@ INSERT INTO supported_cpu(motherboard_id, cpu_generation) VALUES (2, 'i5');
 DROP TABLE IF EXISTS pc;
 CREATE TABLE pc (
                     id serial PRIMARY KEY NOT NULL,
-                    power_supply_id bigint NOT NULL,
-                    motherboard_id bigint NOT NULL,
-                    processor_id bigint NOT NULL,
-                    ram_id bigint NOT NULL,
-                    name varchar(200) NOT NULL,
-                    price decimal NOT NULL
+                    power_supply_id bigint,
+                    motherboard_id bigint,
+                    processor_id bigint,
+                    ram_id bigint,
+                    name varchar(200) unique not null,
+                    price decimal
 );
 ALTER TABLE pc ADD CONSTRAINT pc_fk0 FOREIGN KEY (power_supply_id) REFERENCES power_supply(id);
 ALTER TABLE pc ADD CONSTRAINT pc_fk1 FOREIGN KEY (motherboard_id) REFERENCES motherboard(id);
@@ -203,3 +172,36 @@ ALTER TABLE pc_gpus ADD CONSTRAINT pc_gpus_fk1 FOREIGN KEY (gpu_id) REFERENCES g
 ALTER TABLE pc_gpus ADD CONSTRAINT pc_gpus_fk2 FOREIGN KEY (pc_id) REFERENCES pc(id);
 INSERT INTO pc_gpus(pc_id, gpu_id) VALUES (1, 2);
 INSERT INTO pc_gpus(pc_id, gpu_id) VALUES (1, 1);
+
+
+create table role_table
+(
+    id   serial      not null
+        constraint role_table_pk
+            primary key,
+    name varchar(20) not null
+);
+
+create table user_table
+(
+    id       serial not null
+        constraint user_table_pk
+            primary key,
+    login    varchar(50),
+    password varchar(500),
+    role_id  integer
+        constraint user_table_role_table_id_fk
+            references role_table(id)
+);
+create unique index user_table_login_uindex
+    on user_table (login);
+insert into role_table(name) values ('ROLE_ADMIN');
+insert into role_table(name) values ('ROLE_USER');
+
+create table reset_token
+(
+    id          serial primary key,
+    token       varchar(100),
+    expiry_date timestamp,
+    user_id     integer UNIQUE NOT NULL REFERENCES user_table (id)
+);
